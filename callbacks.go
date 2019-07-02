@@ -12,24 +12,35 @@ import (
 var skipValidations = "validations:skip_validations"
 
 func validate(scope *gorm.Scope) {
-	if _, ok := scope.Get("gorm:update_column"); !ok {
-		if result, ok := scope.DB().Get(skipValidations); !(ok && result.(bool)) {
-			if !scope.HasError() {
-				scope.CallMethod("Validate")
-				if scope.Value != nil {
-					resource := scope.IndirectValue().Interface()
-					_, validatorErrors := govalidator.ValidateStruct(resource)
-					if validatorErrors != nil {
-						if errors, ok := validatorErrors.(govalidator.Errors); ok {
-							for _, err := range flatValidatorErrors(errors) {
-								scope.DB().AddError(formattedError(err, resource))
-							}
-						} else {
-							scope.DB().AddError(validatorErrors)
-						}
-					}
-				}
+	_, ok := scope.Get("gorm:update_column")
+	if ok {
+		return
+	}
+
+	result, ok := scope.DB().Get(skipValidations);
+	if ok && result.(bool) {
+		return
+	}
+
+	if scope.HasError() {
+		return
+	}
+
+	scope.CallMethod("Validate")
+
+	if scope.Value == nil {
+		return
+	}
+
+	resource := scope.IndirectValue().Interface()
+	_, validatorErrors := govalidator.ValidateStruct(resource)
+	if validatorErrors != nil {
+		if errors, ok := validatorErrors.(govalidator.Errors); ok {
+			for _, err := range flatValidatorErrors(errors) {
+				scope.DB().AddError(formattedError(err, resource))
 			}
+		} else {
+			scope.DB().AddError(validatorErrors)
 		}
 	}
 }
